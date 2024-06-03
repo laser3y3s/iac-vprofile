@@ -1,0 +1,55 @@
+name: "vprofile IAC"
+on:                # on which trigger should the workflow start
+  push:            # when there is code push to below mentioned branches
+    branches:
+      - main
+      - stage
+    paths:
+      - terraform/**    # any code changes in any files inside terraform folder should trigger the workflow
+  pull_requests:        # workflow should also trigger when there is a pull request
+    branches:
+      - main
+    paths:
+      - terraform/**
+
+env:
+  # Credentials for deployment to AWS
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}     # from github secrets
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  # S3 bucket for the Terraform state
+  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
+  AWS_REGION: us-east-2
+  EKS_CLUSTER: vprofile-eks
+
+jobs:
+  terraform:     # a custom name for the job
+    name: "Apply terraform code changes"
+    runs-on: ubuntu-latest      # github actions workflow runs inside a container!
+    defaults:  # setting some default values for the container
+      run:
+        shell: bash
+        working-directory: ./terraform
+    steps:
+      - name: "checkout the source code"
+        uses: actions/checkout@v4   # this action reads/checkouts the source code. yes, this is a necessary step.
+
+      - name: "Setup Terraform with specified version on the runner"
+        uses: hashicorp/setup-terraform@v2   # (https://github.com/marketplace/actions/hashicorp-setup-terrafom)
+
+      - name: "Terraform init"
+        id: init     # this is a custom id given for this step, so this step can be referenced in other steps.
+        run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
+
+      - name: "Terraform Validate"
+        id: validate
+        run: terraform validate 
+
+      - name: "Terraform Plan"
+        id: plan
+        run: terraform plan -no-color -input=false -out planfile
+        continue-on-error: true     # this is done so that the workflow moves onto the next step even if there is an error
+
+      - name: "Terraform plan status"
+        if: steps.plan.outcome == 'failure'    #referencing the above step
+        run: exit 1      #
+
