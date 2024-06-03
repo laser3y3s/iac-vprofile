@@ -6,7 +6,7 @@ on:                # on which trigger should the workflow start
       - stage
     paths:
       - terraform/**    # any code changes in any files inside terraform folder should trigger the workflow
-  pull_requests:        # workflow should also trigger when there is a pull request
+  pull_request:        # workflow should also trigger when there is a pull request
     branches:
       - main
     paths:
